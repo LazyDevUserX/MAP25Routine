@@ -39,6 +39,35 @@
         .rotate-90 {
             transform: rotate(90deg);
         }
+
+        /* --- New styles for scroll animation --- */
+        #progress-widget, #progress-heading, #progress-text, #controls-container {
+            transition: all 0.3s ease-in-out;
+        }
+
+        #controls-container {
+            overflow: hidden;
+        }
+
+        /* Scrolled state */
+        #progress-widget.scrolled {
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+        #progress-widget.scrolled #progress-heading {
+            font-size: 1rem; /* text-base */
+        }
+        #progress-widget.scrolled #progress-text {
+            font-size: 1rem; /* text-base */
+        }
+        #progress-widget.scrolled #controls-container {
+            max-height: 0;
+            opacity: 0;
+            margin-top: 0;
+            pointer-events: none; /* Prevent interaction when hidden */
+        }
+        /* --- End of new styles --- */
+
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -52,15 +81,15 @@
 
         <!-- Progress and Controls Section -->
         <div class="sticky top-0 z-10 bg-gray-50 py-4 mb-8">
-            <div class="bg-white p-6 rounded-2xl shadow-md border border-gray-200">
+            <div id="progress-widget" class="bg-white p-6 rounded-2xl shadow-md border border-gray-200">
                 <div class="flex justify-between items-center mb-3">
-                    <h2 class="text-lg font-semibold">Your Progress</h2>
+                    <h2 id="progress-heading" class="text-lg font-semibold">Your Progress</h2>
                     <span id="progress-text" class="text-lg font-bold text-blue-700">0%</span>
                 </div>
                 <div class="w-full bg-gray-200 rounded-full h-4">
                     <div id="progress-bar" class="bg-blue-600 h-4 rounded-full transition-all duration-500" style="width: 0%"></div>
                 </div>
-                <div class="mt-6 flex flex-col sm:flex-row gap-4">
+                <div id="controls-container" class="mt-6 flex flex-col sm:flex-row gap-4">
                     <input type="text" id="searchInput" placeholder="🔎 Search for a topic..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
                     <button id="resetBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-6 rounded-lg transition-transform transform hover:scale-105">Reset Progress</button>
                 </div>
@@ -229,6 +258,7 @@
         const progressText = document.getElementById('progress-text');
         const searchInput = document.getElementById('searchInput');
         const resetBtn = document.getElementById('resetBtn');
+        const progressWidget = document.getElementById('progress-widget'); // New element selector
 
         let totalItems = 0;
         
@@ -279,7 +309,6 @@
                 section.appendChild(contentDiv);
                 container.appendChild(section);
 
-                // Accordion animation logic
                 section.addEventListener('toggle', () => {
                     const icon = summary.querySelector('svg');
                     if (section.open) {
@@ -334,13 +363,23 @@
             });
         }
         
+        // --- New scroll event listener ---
+        window.addEventListener('scroll', () => {
+            // Add 'scrolled' class if user scrolls more than 50px, otherwise remove it
+            if (window.scrollY > 50) {
+                progressWidget.classList.add('scrolled');
+            } else {
+                progressWidget.classList.remove('scrolled');
+            }
+        });
+        // --- End of new listener ---
+
         // Event Listeners
         document.addEventListener('DOMContentLoaded', () => {
             renderSyllabus();
             loadProgress();
             updateProgress();
 
-            // Add change event listener to the container for delegation
             container.addEventListener('change', (e) => {
                 if (e.target.type === 'checkbox') {
                     updateProgress();
