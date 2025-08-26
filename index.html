@@ -54,15 +54,16 @@
         <div id="auth-container" class="text-center mb-8 bg-white p-6 rounded-2xl shadow-md border border-gray-200">
             <h2 class="text-xl font-bold text-gray-700 mb-4">Sign In to Sync Your Progress</h2>
             <p class="text-gray-600 mb-4">Sign in with your Google account to save your progress and access it from any device.</p>
-        
             <!-- Google Sign-In button container -->
-            <div id="google-signin-btn"></div>
-        
-            <div id="user-info" class="hidden mt-4">
-                <p class="text-gray-700">Welcome, <span id="user-name" class="font-bold"></span>!</p>
-                <button id="signout-btn" class="mt-2 text-sm text-blue-600 hover:underline">Sign Out</button>
-            </div>
+            <div id="google-signin-btn" class="inline-block"></div>
         </div>
+        
+        <!-- User Info Display (shown after login) -->
+        <div id="user-info" class="hidden text-center mb-8 bg-white p-6 rounded-2xl shadow-md border border-gray-200">
+            <p class="text-lg text-gray-700">Welcome, <span id="user-name" class="font-bold"></span>!</p>
+            <button id="signout-btn" class="mt-2 text-sm text-blue-600 hover:underline">Sign Out</button>
+        </div>
+
 
         <div id="progress-and-syllabus" class="hidden">
             <div class="sticky top-0 z-10 mb-8">
@@ -124,10 +125,10 @@
             const data = parseJwt(response.credential);
             currentUser = { id: data.sub, name: data.name, email: data.email };
 
-            document.getElementById("user-name").textContent = currentUser.name;
-            document.getElementById("google-signin-btn").style.display = "none";
-            document.getElementById("user-info").style.display = "block";
-            document.getElementById("progress-and-syllabus").style.display = "block";
+            userNameEl.textContent = currentUser.name;
+            authContainer.style.display = "none"; // Hide the entire sign-in prompt
+            userInfo.style.display = "block"; // Show the welcome message
+            progressAndSyllabus.style.display = "block";
 
             loadProgress();
         }
@@ -144,7 +145,8 @@
         window.onload = function () {
             google.accounts.id.initialize({
                 client_id: GOOGLE_CLIENT_ID,
-                callback: handleCredentialResponse
+                callback: handleCredentialResponse,
+                auto_select: true // This will try to sign in the user automatically on reload
             });
 
             google.accounts.id.renderButton(
@@ -152,7 +154,8 @@
                 { theme: "outline", size: "large", type: "standard" }
             );
 
-            // Removed the automatic prompt to prevent the FedCM error
+            // The prompt is removed to prevent the FedCM error. 
+            // Auto_select will handle the persistent login.
             // google.accounts.id.prompt(); 
 
             renderSyllabus();
@@ -161,13 +164,12 @@
 
         signoutBtn.addEventListener("click", () => {
             currentUser = null;
-            google.accounts.id.disableAutoSelect(); // Prevents auto-signin on next visit
+            google.accounts.id.disableAutoSelect(); // This is key to a clean sign-out
             
-            document.getElementById("google-signin-btn").style.display = "block";
-            document.getElementById("user-info").style.display = "none";
-            document.getElementById("progress-and-syllabus").style.display = "none";
+            authContainer.style.display = "block"; // Show the sign-in prompt again
+            userInfo.style.display = "none";
+            progressAndSyllabus.style.display = "none";
             
-            // Reset the UI to a clean state
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
             updateProgress();
         });
