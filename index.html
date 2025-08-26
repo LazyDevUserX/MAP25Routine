@@ -138,7 +138,6 @@
         
         let totalItems = 0;
         let currentUser = null;
-        let saveTimeout; // For debouncing save requests
 
         // --- AUTH LOGIC ---
         function handleCredentialResponse(response) {
@@ -158,6 +157,7 @@
         
         function showLoadingAndFetchProgress() {
             authContainer.style.display = "none";
+            userInfo.style.display = "none";
             loadingContainer.style.display = "block";
             loadProgress();
         }
@@ -256,40 +256,63 @@
             progressText.textContent = `${percentage}%`;
         }
         
-        function saveProgress() {
-            clearTimeout(saveTimeout); // Clear previous timeout
-            saveTimeout = setTimeout(async () => {
-                if (!currentUser) return;
-                const checkedIds = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.id);
-                try {
-                    await fetch(WEB_APP_URL, {
-                        method: 'POST',
-                        mode: 'no-cors', 
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId: currentUser.id, checkedIds: checkedIds })
-                    });
-                } catch (error) {
-                    console.error('Error saving progress:', error);
-                }
-            }, 1000); // Debounce for 1 second
+        async function saveProgress() {
+            if (!currentUser) return;
+            const checkedIds = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.id);
+            // Save to local storage immediately for instant UI feedback on next reload
+            localStorage.setItem(`progress_${currentUser.id}`, JSON.stringify(checkedIds));
+            
+            // Send to server in the background
+            try {
+                await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: currentUser.id, checkedIds: checkedIds })
+                });
+            } catch (error) {
+                console.error('Error saving progress to server:', error);
+            }
         }
 
         async function loadProgress() {
             if (!currentUser) return;
-            document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
-            updateProgress();
+
+            // Step 1: Immediately load from local storage for a snappy UI
+            const localProgress = localStorage.getItem(`progress_${currentUser.id}`);
+            if (localProgress) {
+                const checkedIds = JSON.parse(localProgress);
+                 checkedIds.forEach(id => {
+                    const checkbox = document.getElementById(id);
+                    if (checkbox) checkbox.checked = true;
+                });
+                updateProgress();
+            }
+
+            // Step 2: Fetch the latest data from the server in the background
             try {
                 const response = await fetch(`${WEB_APP_URL}?userId=${currentUser.id}`);
                 const data = await response.json();
+                
+                // Reset checkboxes before applying server state
+                document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+
                 if (data.checkedIds && data.checkedIds.length > 0) {
-                    const checkedIds = data.checkedIds.split(',');
-                    checkedIds.forEach(id => {
+                    const serverCheckedIds = data.checkedIds.split(',');
+                    serverCheckedIds.forEach(id => {
                         const checkbox = document.getElementById(id);
                         if (checkbox) checkbox.checked = true;
                     });
+                    // Update local storage with the latest server data
+                    localStorage.setItem(`progress_${currentUser.id}`, JSON.stringify(serverCheckedIds));
+                } else {
+                    // If server has no data, clear local storage too
+                    localStorage.removeItem(`progress_${currentUser.id}`);
                 }
+
             } catch (error) {
-                console.error('Error loading progress:', error);
+                console.error('Error loading progress from server:', error);
+                // If server fails, the user still sees their locally saved data
             } finally {
                 updateProgress();
                 showAppUI(); // Show the main app UI after loading is complete
@@ -311,7 +334,7 @@
             container.addEventListener('change', (e) => {
                 if (e.target.type === 'checkbox') {
                     updateProgress();
-                    saveProgress();
+                    saveProgress(); // This now saves to local storage instantly and sends to server
                 }
             });
             searchInput.addEventListener('input', filterSyllabus);
