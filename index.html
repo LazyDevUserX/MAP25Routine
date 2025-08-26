@@ -52,8 +52,8 @@
 
         <!-- Auth Section -->
         <div id="auth-container" class="text-center mb-8 bg-white p-6 rounded-2xl shadow-md border border-gray-200">
-            <h2 class="text-xl font-bold text-gray-700 mb-4">Sign In to Sync Your Progress</h2>
-            <p class="text-gray-600 mb-4">Sign in with your Google account to save your progress and access it from any device.</p>
+            <h2 id="auth-heading" class="text-xl font-bold text-gray-700 mb-4">Checking sign-in status...</h2>
+            <p id="auth-p" class="text-gray-600 mb-4">Please wait a moment.</p>
             <!-- Google Sign-In button container -->
             <div id="google-signin-btn" class="inline-block"></div>
         </div>
@@ -115,6 +115,8 @@
         const userInfo = document.getElementById('user-info');
         const userNameEl = document.getElementById('user-name');
         const signoutBtn = document.getElementById('signout-btn');
+        const authHeading = document.getElementById('auth-heading');
+        const authP = document.getElementById('auth-p');
         
         let totalItems = 0;
         let currentUser = null;
@@ -126,8 +128,8 @@
             currentUser = { id: data.sub, name: data.name, email: data.email };
 
             userNameEl.textContent = currentUser.name;
-            authContainer.style.display = "none"; // Hide the entire sign-in prompt
-            userInfo.style.display = "block"; // Show the welcome message
+            authContainer.style.display = "none";
+            userInfo.style.display = "block";
             progressAndSyllabus.style.display = "block";
 
             loadProgress();
@@ -146,17 +148,21 @@
             google.accounts.id.initialize({
                 client_id: GOOGLE_CLIENT_ID,
                 callback: handleCredentialResponse,
-                auto_select: true // This will try to sign in the user automatically on reload
+                auto_select: true
             });
 
             google.accounts.id.renderButton(
                 document.getElementById("google-signin-btn"),
                 { theme: "outline", size: "large", type: "standard" }
             );
+            
+            // Hide the loading text and show the sign-in prompt if auto-select fails
+            authHeading.textContent = "Sign In to Sync Your Progress";
+            authP.textContent = "Sign in with your Google account to save your progress and access it from any device.";
 
-            // The prompt is removed to prevent the FedCM error. 
-            // Auto_select will handle the persistent login.
-            // google.accounts.id.prompt(); 
+            // We remove the prompt() to avoid the FedCM error. 
+            // The auto_select: true will handle persistent login.
+            // If the user is not signed in, they will need to click the button.
 
             renderSyllabus();
             setupEventListeners();
@@ -164,9 +170,9 @@
 
         signoutBtn.addEventListener("click", () => {
             currentUser = null;
-            google.accounts.id.disableAutoSelect(); // This is key to a clean sign-out
+            google.accounts.id.disableAutoSelect();
             
-            authContainer.style.display = "block"; // Show the sign-in prompt again
+            authContainer.style.display = "block";
             userInfo.style.display = "none";
             progressAndSyllabus.style.display = "none";
             
