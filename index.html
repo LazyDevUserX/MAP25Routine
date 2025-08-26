@@ -40,6 +40,20 @@
             margin-top: 0;
             pointer-events: none;
         }
+        /* Spinner for loading state */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 4px solid #3498db;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -57,6 +71,13 @@
             <div id="google-signin-btn" class="inline-block"></div>
         </div>
         
+        <!-- Loading/Syncing State -->
+        <div id="loading-container" class="hidden text-center mb-8 bg-white p-6 rounded-2xl shadow-md border border-gray-200">
+            <h2 class="text-xl font-bold text-gray-700 mb-4">Syncing Your Progress...</h2>
+            <div class="loader"></div>
+            <p class="text-gray-600">Please wait while we fetch your saved data.</p>
+        </div>
+
         <!-- User Info Display (shown after login) -->
         <div id="user-info" class="hidden text-center mb-8 bg-white p-6 rounded-2xl shadow-md border border-gray-200">
             <p class="text-lg text-gray-700">Welcome, <span id="user-name" class="font-bold"></span>!</p>
@@ -109,6 +130,7 @@
         const resetBtn = document.getElementById('resetBtn');
         const progressWidget = document.getElementById('progress-widget');
         const authContainer = document.getElementById('auth-container');
+        const loadingContainer = document.getElementById('loading-container');
         const progressAndSyllabus = document.getElementById('progress-and-syllabus');
         const googleSigninBtn = document.getElementById('google-signin-btn');
         const userInfo = document.getElementById('user-info');
@@ -116,14 +138,14 @@
         
         let totalItems = 0;
         let currentUser = null;
+        let saveTimeout; // For debouncing save requests
 
         // --- AUTH LOGIC ---
         function handleCredentialResponse(response) {
             const data = parseJwt(response.credential);
             currentUser = { id: data.sub, name: data.name, email: data.email };
-            localStorage.setItem("currentUser", JSON.stringify(currentUser)); // Save user to local storage
-            showUserUI();
-            loadProgress();
+            localStorage.setItem("currentUser", JSON.stringify(currentUser));
+            showLoadingAndFetchProgress();
         }
 
         function parseJwt(token) {
@@ -133,16 +155,23 @@
                 '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
             return JSON.parse(jsonPayload);
         }
-
-        function showUserUI() {
-            userNameEl.textContent = currentUser.name;
+        
+        function showLoadingAndFetchProgress() {
             authContainer.style.display = "none";
+            loadingContainer.style.display = "block";
+            loadProgress();
+        }
+
+        function showAppUI() {
+            userNameEl.textContent = currentUser.name;
+            loadingContainer.style.display = "none";
             userInfo.style.display = "block";
             progressAndSyllabus.style.display = "block";
         }
 
-        function hideUserUI() {
+        function showLoginUI() {
             authContainer.style.display = "block";
+            loadingContainer.style.display = "none";
             userInfo.style.display = "none";
             progressAndSyllabus.style.display = "none";
         }
@@ -154,8 +183,7 @@
             const savedUser = localStorage.getItem("currentUser");
             if (savedUser) {
                 currentUser = JSON.parse(savedUser);
-                showUserUI();
-                loadProgress();
+                showLoadingAndFetchProgress();
             }
 
             google.accounts.id.initialize({
@@ -171,9 +199,9 @@
 
         document.getElementById("signout-btn").addEventListener("click", () => {
             currentUser = null;
-            localStorage.removeItem("currentUser"); // Clear user from local storage
+            localStorage.removeItem("currentUser");
             google.accounts.id.disableAutoSelect();
-            hideUserUI();
+            showLoginUI();
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
             updateProgress();
         });
@@ -228,19 +256,22 @@
             progressText.textContent = `${percentage}%`;
         }
         
-        async function saveProgress() {
-            if (!currentUser) return;
-            const checkedIds = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.id);
-            try {
-                await fetch(WEB_APP_URL, {
-                    method: 'POST',
-                    mode: 'no-cors', 
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: currentUser.id, checkedIds: checkedIds })
-                });
-            } catch (error) {
-                console.error('Error saving progress:', error);
-            }
+        function saveProgress() {
+            clearTimeout(saveTimeout); // Clear previous timeout
+            saveTimeout = setTimeout(async () => {
+                if (!currentUser) return;
+                const checkedIds = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.id);
+                try {
+                    await fetch(WEB_APP_URL, {
+                        method: 'POST',
+                        mode: 'no-cors', 
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: currentUser.id, checkedIds: checkedIds })
+                    });
+                } catch (error) {
+                    console.error('Error saving progress:', error);
+                }
+            }, 1000); // Debounce for 1 second
         }
 
         async function loadProgress() {
@@ -257,9 +288,11 @@
                         if (checkbox) checkbox.checked = true;
                     });
                 }
-                updateProgress();
             } catch (error) {
                 console.error('Error loading progress:', error);
+            } finally {
+                updateProgress();
+                showAppUI(); // Show the main app UI after loading is complete
             }
         }
 
